@@ -158,12 +158,24 @@ Bu bilgileri doğal bir şekilde konuşmanda kullan. Örneğin "${userData.name}
     // Mevcut mesajı ekle
     messages.push({ role: 'user', content: message })
 
-    // Groq API çağrısı (ücretsiz alternatif)
-    const apiUrl = process.env.GROQ_API_KEY 
+    // API provider seçimi
+    const useGroq = process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY
+    const apiUrl = useGroq 
       ? 'https://api.groq.com/openai/v1/chat/completions'
       : 'https://api.openai.com/v1/chat/completions'
     
-    const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
+    const apiKey = useGroq ? process.env.GROQ_API_KEY : process.env.OPENAI_API_KEY
+    
+    // Model mapping for Groq
+    let finalModel = model
+    if (useGroq) {
+      const groqModels = {
+        'gpt-3.5-turbo': 'llama3-8b-8192',
+        'gpt-4': 'llama3-70b-8192',
+        'gpt-4-turbo': 'llama3-70b-8192'
+      }
+      finalModel = groqModels[model] || 'llama3-8b-8192'
+    }
     
     const openaiResponse = await fetch(apiUrl, {
       method: 'POST',
@@ -172,12 +184,14 @@ Bu bilgileri doğal bir şekilde konuşmanda kullan. Örneğin "${userData.name}
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: model,
+        model: finalModel,
         messages: messages,
         temperature: temperature,
-        max_tokens: 1000,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1,
+        max_tokens: useGroq ? 1000 : 500,
+        ...(useGroq ? {} : {
+          presence_penalty: 0.1,
+          frequency_penalty: 0.1
+        })
       }),
     })
 
